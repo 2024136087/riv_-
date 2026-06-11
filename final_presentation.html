@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>riv — AI 도서 추천 앱 최종 발표</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0D1117;
+      --surface: #161B22;
+      --surface2: #21262D;
+      --primary: #4361EE;
+      --primary-light: #7B93FF;
+      --text: #E6EDF3;
+      --text-sub: #8B949E;
+      --green: #4ADE80;
+      --yellow: #FBBF24;
+      --red: #F87171;
+      --border: rgba(255,255,255,0.07);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── Progress bar ── */
+    #progress {
+      position: fixed; top: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light));
+      transition: width 0.4s ease; z-index: 200;
+    }
+
+    /* ── Slide counter ── */
+    #counter {
+      position: fixed; bottom: 22px; right: 28px;
+      font-size: 12px; color: var(--text-sub); z-index: 200;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Nav bar (buttons + dots in one row) ── */
+    #nav-bar {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px; z-index: 200;
+    }
+    .nav-btn {
+      width: 38px; height: 38px;
+      border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text);
+      border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; transition: background 0.2s;
+      user-select: none; flex-shrink: 0;
+    }
+    .nav-btn:hover { background: #2D333B; }
+    .nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+    /* ── Dot indicators ── */
+    #dots {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-sub); transition: all 0.3s;
+    }
+    .dot.active { background: var(--primary-light); transform: scale(1.4); }
+
+    /* ── Slides ── */
+    .slide {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding: 56px 80px 80px;
+      opacity: 0; transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    .slide.active { opacity: 1; pointer-events: all; }
+
+    /* ── Common typography ── */
+    .slide-label {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--primary-light); margin-bottom: 14px;
+    }
+    .slide-title {
+      font-size: 38px; font-weight: 800;
+      line-height: 1.2; margin-bottom: 28px;
+    }
+
+    /* ── Cards & grids ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 26px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 100%; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; width: 100%; }
+
+    /* ══════════════════════════════════
+       SLIDE 1 — Cover
+    ══════════════════════════════════ */
+    #s1 {
+      background:
+        radial-gradient(ellipse 70% 50% at 65% 45%, rgba(67,97,238,0.14) 0%, transparent 70%),
+        var(--bg);
+      text-align: center;
+    }
+    .s1-logo {
+      font-size: 100px; font-weight: 900; letter-spacing: -6px;
+      background: linear-gradient(135deg, #4361EE 0%, #7B93FF 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; line-height: 1; margin-bottom: 10px;
+    }
+    .s1-tagline { font-size: 20px; color: var(--text-sub); margin-bottom: 40px; }
+    .s1-divider { width: 56px; height: 3px; background: var(--primary); border-radius: 2px; margin: 0 auto 36px; }
+    .s1-meta { display: flex; gap: 52px; justify-content: center; }
+    .s1-meta .val { font-size: 16px; font-weight: 700; }
+    .s1-meta .lbl { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
+
+    /* ══════════════════════════════════
+       SLIDE 2 — Vision
+    ══════════════════════════════════ */
+    #s2 { text-align: center; }
+    .s2-hook {
+      font-size: 17px; color: var(--text-sub);
+      line-height: 1.75; max-width: 580px; margin-bottom: 44px;
+    }
+    .s2-quote {
+      font-size: 30px; font-weight: 700; line-height: 1.55;
+      max-width: 700px; border-left: 4px solid var(--primary);
+      padding-left: 28px; text-align: left;
+    }
+    .s2-quote em { color: var(--primary-light); font-style: normal; }
+
+    /* ══════════════════════════════════
+       SLIDE 3 — Problem
+    ══════════════════════════════════ */
+    #s3 .stat-num {
+      font-size: 52px; font-weight: 900;
+      color: var(--primary-light); line-height: 1;
+    }
+    #s3 .stat-sub { font-size: 13px; color: var(--text-sub); margin-top: 6px; }
+    #s3 .prob-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    #s3 .prob-body { font-size: 13px; color: var(--text-sub); line-height: 1.65; }
+    #s3 .prob-example {
+      margin-top: 10px; padding: 8px 12px;
+      background: var(--surface2); border-radius: 6px;
+      font-size: 12px; color: var(--yellow); line-height: 1.5;
+    }
+
+    /* ══════════════════════════════════
+       SLIDE 4 — WBS & Tech
+    ══════════════════════════════════ */
+    #s4 .wbs-row { display: flex; width: 100%; max-width: 860px; margin-bottom: 28px; }
+    #s4 .wk {
+      flex: 1; text-align: center; padding: 14px 8px;
+      border: 1px solid var(--border);
+    }
+    #s4 .wk:first-child { border-radius: 10px 0 0 10px; }
+    #s4 .wk:last-child  { border-radius: 0 10px 10px 0; }
+    #s4 .wk + .wk { border-left: none; }
+    #s4 .wk.done    { background: rgba(74,222,128,0.1);  border-color: rgba(74,222,128,0.3); }
+    #s4 .wk.ongoing { background: rgba(67,97,238,0.15); border-color: rgba(67,97,238,0.4); }
+    #s4 .wk.pending { background: var(--surface); }
+    #s4 .wk-num  { font-size: 10px; color: var(--text-sub); margin-bottom: 6px; }
+    #s4 .wk-task { font-size: 12px; font-weight: 700; line-height: 1.4; }
+    #s4 .wk-pct  { font-size: 11px; margin-top: 6px; }
+    .tech-grid { display: flex; flex-wrap: wrap; gap: 8px; max-width: 860px; }
+    .t-badge {
+      padding: 7px 14px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 7px; font-size: 13px; font-weight: 600;
+    }
+    .t-badge.hi { border-color: rgba(67,97,238,0.45); color: var(--primary-light); background: rgba(67,97,238,0.1); }
+
+    /* ══════════════════════════════════
+       SLIDE 5 — Architecture
+    ══════════════════════════════════ */
+    #s5 .layer {
+      display: flex; align-items: flex-start; gap: 16px;
+      padding: 16px 20px; border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 10px;
+    }
+    #s5 .layer-icon { font-size: 26px; flex-shrink: 0; margin-top: 2px; }
+    #s5 .layer-name { font-size: 13px; font-weight: 700; color: var(--primary-light); margin-bottom: 4px; }
+    #s5 .layer-desc { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+    #s5 .layer-mods  { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    #s5 .mod {
+      font-size: 11px; font-family: 'Consolas', monospace;
+      padding: 2px 8px; background: var(--surface2);
+      border-radius: 4px; color: #A5D6FF;
+    }
+    #s5 .dir-row { display: grid; grid-template-columns: repeat(6,1fr); gap: 6px; margin-top: 14px; }
+    #s5 .dir {
+      font-size: 11px; font-family: 'Consolas', monospace;
+      padding: 7px 10px; background: var(--surface2);
+      border-radius: 6px; color: #A5D6FF; text-align: center;
+    }
+
+    /* ══════════════════════════════════
+       SLIDE 6 — ADR
+    ══════════════════════════════════ */
+    #s6 .adr-card { border-radius: 14px; padding: 22px 24px; background: var(--surface); border: 1px solid var(--border); }
+    #s6 .adr-num  { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--primary-light); margin-bottom: 8px; }
+    #s6 .adr-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; line-height: 1.4; }
+    #s6 .adr-body  { font-size: 13px; color: var(--text-sub); line-height: 1.65; }
+    #s6 .adr-verdict { margin-top: 12px; font-size: 12px; color: var(--green); font-weight: 600; }
+
+    /* ══════════════════════════════════
+       SLIDE 7 — Challenges
+    ══════════════════════════════════ */
+    #s7 .ch { border-radius: 14px; padding: 22px 24px; background: var(--surface); border: 1px solid var(--border); }
+    #s7 .ch-icon  { font-size: 28px; margin-bottom: 10px; }
+    #s7 .ch-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    #s7 .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 4px; }
+    #s7 .problem  { font-size: 12px; color: var(--red);   line-height: 1.55; margin-bottom: 10px; }
+    #s7 .solution { font-size: 12px; color: var(--green); line-height: 1.55; }
+
+    /* ══════════════════════════════════
+       SLIDE 8 — Quality & Test
+    ══════════════════════════════════ */
+    #s8 .q-item {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 15px 0; border-bottom: 1px solid var(--border);
+    }
+    #s8 .q-item:last-child { border-bottom: none; }
+    #s8 .q-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+    #s8 .q-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    #s8 .q-desc { font-size: 13px; color: var(--text-sub); line-height: 1.55; }
+    #s8 .highlight { color: var(--primary-light); font-weight: 600; }
+
+    /* ══════════════════════════════════
+       SLIDE 9 — DevEnv & Deploy
+    ══════════════════════════════════ */
+    #s9 .sec-title { font-size: 12px; font-weight: 700; color: var(--text-sub); letter-spacing: 0.08em; margin-bottom: 10px; }
+    #s9 .step {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 16px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 9px; margin-bottom: 8px;
+    }
+    #s9 .step-n {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #s9 .step-t { font-size: 13px; }
+    #s9 .step-t code {
+      font-family: 'Consolas', monospace;
+      background: var(--surface2); padding: 1px 6px;
+      border-radius: 4px; font-size: 12px; color: #A5D6FF;
+    }
+    #s9 .arrow { text-align: center; color: var(--primary-light); font-size: 14px; margin: 2px 0; }
+    #s9 .step.ok { border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.07); }
+    #s9 .step.ok .step-n { background: var(--green); color: #0D1117; }
+
+    /* ══════════════════════════════════
+       SLIDE 10 — Closing
+    ══════════════════════════════════ */
+    #s10 {
+      text-align: center;
+      background:
+        radial-gradient(ellipse 60% 50% at 38% 55%, rgba(67,97,238,0.1) 0%, transparent 65%),
+        var(--bg);
+    }
+    #s10 .future-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; max-width: 820px; margin: 24px 0; }
+    #s10 .fi { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+    #s10 .fi-icon { font-size: 20px; margin-bottom: 8px; }
+    #s10 .fi-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    #s10 .fi-desc { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+    #s10 .bonus-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
+    #s10 .bonus {
+      padding: 7px 14px;
+      background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3);
+      border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--yellow);
+    }
+    #s10 .closing { font-size: 26px; font-weight: 700; margin-top: 12px; }
+    #s10 .closing em { color: var(--primary-light); font-style: normal; }
+    #s10 .thanks { margin-top: 12px; font-size: 15px; color: var(--text-sub); }
+  </style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="counter">1 / 10</div>
+<div id="nav-bar">
+  <button class="nav-btn" id="btn-prev" onclick="go(-1)">&#8592;</button>
+  <div id="dots"></div>
+  <button class="nav-btn" id="btn-next" onclick="go(1)">&#8594;</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 1 — Cover
+═══════════════════════════════════════════════════════ -->
+<div class="slide active" id="s1">
+  <div class="s1-logo">riv</div>
+  <div class="s1-tagline">AI 도서 추천 앱 &nbsp;·&nbsp; 최종 발표</div>
+  <div class="s1-divider"></div>
+  <div class="s1-meta">
+    <div><div class="val">2024136087</div><div class="lbl">학번</div></div>
+    <div><div class="val">2026. 06. 16</div><div class="lbl">발표일</div></div>
+    <div><div class="val">5 분</div><div class="lbl">총 발표 시간</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 2 — Vision
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <div class="slide-label">Vision</div>
+  <div class="s2-hook">
+    여러분, 최근에 책 한 권 사보셨나요?<br>
+    베스트셀러 1위, 유명 인플루언서 추천…<br>
+    이 책들이 <strong style="color:var(--text)">지금의 나에게</strong> 맞는지는 알 수가 없습니다.
+  </div>
+  <div class="s2-quote">
+    "<em>AI 사서</em>와 3~5번 대화해서,<br>
+    지금 나에게 딱 맞는 책을 추천받는다."
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 3 — Problem Definition
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <div class="slide-label">Problem Definition</div>
+  <div class="slide-title" style="font-size:34px">왜 새로운 도서 앱이 필요한가?</div>
+  <div class="grid-3" style="max-width:900px">
+    <div class="card" style="text-align:center">
+      <div class="stat-num">70,000<span style="font-size:28px">종</span></div>
+      <div class="stat-sub">국내 연간 신간 출판 수</div>
+      <div style="margin-top:14px;font-size:13px;color:var(--text-sub);line-height:1.6">
+        선택지는 넘쳐나지만<br>내 책을 찾기는 더 어렵다
+      </div>
+    </div>
+    <div class="card">
+      <div class="prob-title">획일적 추천</div>
+      <div class="prob-body">
+        기존 앱은 판매량 기반 베스트셀러만 노출. 개인 취향이 전혀 반영되지 않는 추천.
+      </div>
+    </div>
+    <div class="card">
+      <div class="prob-title">자연어 검색 부재</div>
+      <div class="prob-body">정확한 제목·저자를 알아야만 검색 가능.</div>
+      <div class="prob-example">
+        "요즘 지쳐있는데 위로가 되는 책 추천해줘"<br>
+        → 이 질문에 답하는 앱이 없었다
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 4 — WBS & Tech Stack
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <div class="slide-label">Project Plan</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:20px">WBS &amp; 기술 스택</div>
+  <div class="wbs-row">
+    <div class="wk done">
+      <div class="wk-num">1주차 · 04.28</div>
+      <div class="wk-task">요구사항 정리<br>ADR 작성</div>
+      <div class="wk-pct" style="color:var(--green)">완료</div>
+    </div>
+    <div class="wk done">
+      <div class="wk-num">2주차 · 05.05</div>
+      <div class="wk-task">검색 · 장르<br>UI 구현</div>
+      <div class="wk-pct" style="color:var(--green)">완료</div>
+    </div>
+    <div class="wk done">
+      <div class="wk-num">3주차 · 05.12</div>
+      <div class="wk-task">로그인<br>마이페이지</div>
+      <div class="wk-pct" style="color:var(--green)">완료</div>
+    </div>
+    <div class="wk done">
+      <div class="wk-num">4주차 · 05.26</div>
+      <div class="wk-task">AI 추천<br>엔진 통합</div>
+      <div class="wk-pct" style="color:var(--green)">완료</div>
+    </div>
+    <div class="wk ongoing">
+      <div class="wk-num">5주차 · 06.09</div>
+      <div class="wk-task">테스트<br>배포</div>
+      <div class="wk-pct" style="color:var(--primary-light)">MVP 75%</div>
+    </div>
+  </div>
+  <div style="width:100%;max-width:860px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:var(--text-sub);margin-bottom:10px">TECH STACK</div>
+    <div class="tech-grid">
+      <div class="t-badge hi">Expo SDK 54</div>
+      <div class="t-badge hi">React Native</div>
+      <div class="t-badge hi">TypeScript</div>
+      <div class="t-badge">React Navigation</div>
+      <div class="t-badge">Google Gemini API</div>
+      <div class="t-badge">국립중앙도서관 API</div>
+      <div class="t-badge">AsyncStorage</div>
+      <div class="t-badge">GitHub Actions</div>
+      <div class="t-badge">GitHub Pages</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 5 — Architecture
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <div class="slide-label">Architecture</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:20px">앱 구조 &amp; 아키텍처</div>
+  <div style="width:100%;max-width:860px">
+    <div class="layer" style="border-color:rgba(67,97,238,0.4);background:rgba(67,97,238,0.07)">
+      <div class="layer-icon">📱</div>
+      <div>
+        <div class="layer-name">화면 레이어 · Screens</div>
+        <div class="layer-desc">Bottom Tab 4개 탭으로 구성된 메인 내비게이션</div>
+        <div class="layer-mods">
+          <span class="mod">HomeScreen</span>
+          <span class="mod">GenreScreen</span>
+          <span class="mod">RecommendScreen</span>
+          <span class="mod">MyPageScreen</span>
+          <span class="mod">BookDetailScreen</span>
+        </div>
+      </div>
+    </div>
+    <div class="layer" style="border-color:rgba(74,222,128,0.35);background:rgba(74,222,128,0.05)">
+      <div class="layer-icon">⚙️</div>
+      <div>
+        <div class="layer-name">서비스 레이어 · Services</div>
+        <div class="layer-desc">비즈니스 로직을 화면에서 완전히 분리</div>
+        <div class="layer-mods">
+          <span class="mod">bookApi.ts</span>
+          <span class="mod">aiService.ts</span>
+          <span class="mod">storage.ts</span>
+        </div>
+      </div>
+    </div>
+    <div class="layer" style="border-color:rgba(251,191,36,0.35);background:rgba(251,191,36,0.05)">
+      <div class="layer-icon">🎨</div>
+      <div>
+        <div class="layer-name">Context 레이어 · Global State</div>
+        <div class="layer-desc">ThemeContext — useColors() / useTheme() 훅으로 다크·라이트 모드 전역 관리</div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text-sub);margin-bottom:8px">DIRECTORY STRUCTURE</div>
+      <div class="dir-row">
+        <div class="dir">src/screens/</div>
+        <div class="dir">src/components/</div>
+        <div class="dir">src/services/</div>
+        <div class="dir">src/context/</div>
+        <div class="dir">src/constants/</div>
+        <div class="dir">src/types/</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 6 — ADR
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="slide-label">Architecture Decision Records</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:24px">핵심 설계 결정 3가지</div>
+  <div class="grid-3" style="max-width:960px">
+    <div class="adr-card">
+      <div class="adr-num">ADR-001</div>
+      <div class="adr-title">국립중앙도서관 API<br>+ Mock Fallback</div>
+      <div class="adr-body">
+        API 실패 시 내장 Mock 데이터로 자동 전환. 추가 비용 없이 수십만 권 메타데이터를 활용.
+        CORS 이슈로 웹 환경에서는 Mock이 기본으로 동작.
+      </div>
+      <div class="adr-verdict">▶ 비용 절감 + 안정성 확보</div>
+    </div>
+    <div class="adr-card">
+      <div class="adr-num">ADR-002</div>
+      <div class="adr-title">Google Gemini API<br>3단계 폴백 체인</div>
+      <div class="adr-body">
+        2.5 Flash → flash-latest → 2.0-lite 순 자동 전환.
+        할당량 초과·서비스 장애 시에도 앱이 멈추지 않음.
+        API 키 미설정 시 Mock 응답으로 대체.
+      </div>
+      <div class="adr-verdict">▶ 무중단 AI 추천</div>
+    </div>
+    <div class="adr-card">
+      <div class="adr-num">ADR-003</div>
+      <div class="adr-title">AsyncStorage<br>로컬 퍼시스턴스</div>
+      <div class="adr-body">
+        서버 없이 MVP를 빠르게 개발하기 위해 선택.
+        최근 본 책(20권), 구매 이력, 캐시, 카드 정보 로컬 저장.
+        키는 <code style="font-family:monospace;font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:3px">riv_</code> 접두사로 통일.
+      </div>
+      <div class="adr-verdict">▶ 서버 의존도 최소화</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 7 — Challenges
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="slide-label">Implementation Challenges</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:24px">구현 시행착오</div>
+  <div class="grid-3" style="max-width:960px">
+    <div class="ch">
+      <div class="ch-icon">🌐</div>
+      <div class="ch-title">CORS 이슈</div>
+      <div class="lbl" style="color:var(--red)">문 제</div>
+      <div class="problem">웹 배포 시 국립중앙도서관 API가 CORS를 차단 — 브라우저에서 직접 호출 불가</div>
+      <div class="lbl" style="color:var(--green)">해 결</div>
+      <div class="solution">Mock Fallback을 필수 기능으로 격상, 웹 환경 자동 감지 로직 추가</div>
+    </div>
+    <div class="ch">
+      <div class="ch-icon">📦</div>
+      <div class="ch-title">피어 의존성 충돌</div>
+      <div class="lbl" style="color:var(--red)">문 제</div>
+      <div class="problem">react-native-screens ↔ React 19 간 peerDependency 충돌로 npm install 실패</div>
+      <div class="lbl" style="color:var(--green)">해 결</div>
+      <div class="solution"><code style="font-family:monospace;font-size:11px">--legacy-peer-deps</code> 옵션 적용,<br>docs/setup.md 설치 가이드에 명시</div>
+    </div>
+    <div class="ch">
+      <div class="ch-icon">🤖</div>
+      <div class="ch-title">AI 할당량 초과</div>
+      <div class="lbl" style="color:var(--red)">문 제</div>
+      <div class="problem">Gemini 무료 할당량 소진 시 API 오류로 앱이 완전히 멈춤</div>
+      <div class="lbl" style="color:var(--green)">해 결</div>
+      <div class="solution">3단계 모델 폴백 체인 구현 → 할당량 초과 시 Mock 응답으로 자동 대체</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 8 — Quality & Test
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s8">
+  <div class="slide-label">Code Quality &amp; Testing</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:20px">성능 최적화 · 코드 품질 · 테스트</div>
+  <div style="max-width:820px;width:100%">
+    <div class="card">
+      <div class="q-item">
+        <div class="q-icon">⚡</div>
+        <div>
+          <div class="q-name">성능 최적화</div>
+          <div class="q-desc"><span class="highlight">useMemo</span>로 테마별 StyleSheet 캐싱 — 리렌더링 시 StyleSheet.create() 재실행 방지. 모든 스크린이 <span class="highlight">useMemo(() =&gt; StyleSheet.create({…}), [Colors])</span> 패턴 준수.</div>
+        </div>
+      </div>
+      <div class="q-item">
+        <div class="q-icon">🔷</div>
+        <div>
+          <div class="q-name">TypeScript 전면 적용 · ADR 문서화</div>
+          <div class="q-desc">Book, User, ChatMessage, PaymentCard 등 모든 도메인 타입을 <span class="highlight">types/index.ts</span>에서 중앙 관리. 설계 결정은 ADR로 기록.</div>
+        </div>
+      </div>
+      <div class="q-item">
+        <div class="q-icon">📄</div>
+        <div>
+          <div class="q-name">AUTHORING.minseo.md — 단일 마스터 문서</div>
+          <div class="q-desc">기획서, ADR, AI 에이전트 지침을 단일 파일로 통합. <span class="highlight">LLM Wiki</span> 형태로 암묵지를 축적해 일관된 코드 생성 가능.</div>
+        </div>
+      </div>
+      <div class="q-item">
+        <div class="q-icon">🧪</div>
+        <div>
+          <div class="q-name">단위 테스트 · 통합 테스트</div>
+          <div class="q-desc">Expo Go 실기기 단위 기능 테스트 수행. 홈 → 장르 → AI 추천 → 도서 상세 → 구매 전체 플로우 <span class="highlight">통합 테스트</span> 직접 진행.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 9 — DevEnv & Deploy
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s9">
+  <div class="slide-label">Dev Environment &amp; Build &amp; Deploy</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:20px">개발 환경 &amp; 빌드 &amp; 배포</div>
+  <div class="grid-2" style="max-width:880px">
+    <div>
+      <div class="sec-title">개발 환경 & 실행</div>
+      <div class="step"><div class="step-n">1</div><div class="step-t">Node.js 18+ · Expo CLI 설치</div></div>
+      <div class="step"><div class="step-n">2</div><div class="step-t"><code>npm install --legacy-peer-deps</code></div></div>
+      <div class="step"><div class="step-n">3</div><div class="step-t"><code>npm start</code> → Expo Go 앱으로 실기기 연결</div></div>
+      <div class="step"><div class="step-n">W</div><div class="step-t"><code>npm run web</code> → 브라우저에서 실행</div></div>
+      <div class="step" style="margin-top:8px;border-color:rgba(67,97,238,0.3);background:rgba(67,97,238,0.07)">
+        <div class="step-n" style="background:transparent;color:var(--primary-light);font-size:10px">📄</div>
+        <div class="step-t" style="font-size:12px;color:var(--text-sub)">설치 가이드: <code>docs/setup.md</code></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">GitHub Actions 자동 배포</div>
+      <div class="step"><div class="step-n">1</div><div class="step-t">main 브랜치 push</div></div>
+      <div class="arrow">↓ .github/workflows/deploy.yml</div>
+      <div class="step"><div class="step-n">2</div><div class="step-t"><code>npx expo export --platform web</code></div></div>
+      <div class="arrow">↓</div>
+      <div class="step"><div class="step-n">3</div><div class="step-t">peaceiris/actions-gh-pages → gh-pages 브랜치</div></div>
+      <div class="arrow">↓</div>
+      <div class="step ok">
+        <div class="step-n">✓</div>
+        <div class="step-t" style="font-size:12px">2024136087.github.io/riv_project</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 10 — Closing
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s10">
+  <div class="slide-label">Closing</div>
+  <div class="slide-title" style="font-size:32px;margin-bottom:0">활용 방안 &amp; 향후 발전</div>
+  <div class="future-grid">
+    <div class="fi">
+      <div class="fi-icon">🏛️</div>
+      <div class="fi-name">도서관·서점 연계</div>
+      <div class="fi-desc">공공 도서관 API 연동, 오프라인 서점과의 재고 연결</div>
+    </div>
+    <div class="fi">
+      <div class="fi-icon">🔒</div>
+      <div class="fi-name">백엔드 서버 추가</div>
+      <div class="fi-desc">expo-secure-store 민감 정보 보호, 카카오 도서 API 병행</div>
+    </div>
+    <div class="fi">
+      <div class="fi-icon">📊</div>
+      <div class="fi-name">개인화 고도화</div>
+      <div class="fi-desc">장기 독서 이력 분석 기반 추천 엔진 발전</div>
+    </div>
+  </div>
+  <div class="bonus-row">
+    <div class="bonus">+1 AI Agent 적극 활용</div>
+    <div class="bonus">+2 AUTHORING.minseo.md — 단일 마스터 문서</div>
+    <div class="bonus">+1 LLM Wiki 기반 암묵지 관리</div>
+  </div>
+  <div class="closing">riv와 함께, <em>독자와 책 사이의 거리</em>를 좁히겠습니다.</div>
+  <div class="thanks">감사합니다.</div>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const N = slides.length;
+  let cur = 0;
+
+  // Build dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    d.style.pointerEvents = 'auto';
+    d.style.cursor = 'pointer';
+    dotsEl.appendChild(d);
+  });
+
+  function updateUI() {
+    document.getElementById('progress').style.width = ((cur + 1) / N * 100) + '%';
+    document.getElementById('counter').textContent = (cur + 1) + ' / ' + N;
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+    document.getElementById('btn-prev').disabled = cur === 0;
+    document.getElementById('btn-next').disabled = cur === N - 1;
+  }
+
+  function goTo(idx) {
+    if (idx === cur || idx < 0 || idx >= N) return;
+    slides[cur].classList.remove('active');
+    cur = idx;
+    slides[cur].classList.add('active');
+    updateUI();
+  }
+
+  function go(dir) { goTo(cur + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); go(1); }
+    if (['ArrowLeft', 'ArrowUp'].includes(e.key))          { e.preventDefault(); go(-1); }
+  });
+
+  // Swipe support
+  let tx = 0;
+  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 48) go(dx < 0 ? 1 : -1);
+  });
+
+  updateUI();
+</script>
+</body>
+</html>

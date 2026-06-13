@@ -284,6 +284,22 @@
     #s10 .closing { font-size: 26px; font-weight: 700; margin-top: 12px; }
     #s10 .closing em { color: var(--primary-light); font-style: normal; }
     #s10 .thanks { margin-top: 12px; font-size: 15px; color: var(--text-sub); }
+
+    /* ══════════════════════════════════
+       SLIDE 11 — Demo Video
+    ══════════════════════════════════ */
+    #s11 { text-align: center; }
+    #s11 .video-wrap {
+      width: 100%; max-width: 860px;
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
+      margin-top: 8px;
+    }
+    #s11 video {
+      width: 100%; max-height: 62vh;
+      display: block; outline: none;
+    }
   </style>
 </head>
 <body>
@@ -365,34 +381,29 @@
   <div class="slide-title" style="font-size:32px;margin-bottom:20px">WBS &amp; 기술 스택</div>
   <div class="wbs-row">
     <div class="wk done">
-      <div class="wk-num">9주차 · 04.28</div>
+      <div class="wk-num">1주차 · 04.28</div>
       <div class="wk-task">요구사항 정리<br>ADR 작성</div>
       <div class="wk-pct" style="color:var(--green)">완료</div>
     </div>
     <div class="wk done">
-      <div class="wk-num">10주차 · 05.12</div>
+      <div class="wk-num">2주차 · 05.05</div>
       <div class="wk-task">검색 · 장르<br>UI 구현</div>
       <div class="wk-pct" style="color:var(--green)">완료</div>
     </div>
     <div class="wk done">
-      <div class="wk-num">11주차 · 05.19</div>
+      <div class="wk-num">3주차 · 05.12</div>
       <div class="wk-task">로그인<br>마이페이지</div>
       <div class="wk-pct" style="color:var(--green)">완료</div>
     </div>
     <div class="wk done">
-      <div class="wk-num">12주차 · 05.26</div>
+      <div class="wk-num">4주차 · 05.26</div>
       <div class="wk-task">AI 추천<br>엔진 통합</div>
       <div class="wk-pct" style="color:var(--green)">완료</div>
     </div>
-    <div class="wk done">
-      <div class="wk-num">13주차 · 06.02</div>
-      <div class="wk-task">책 상세<br>페이지 구현</div>
-      <div class="wk-pct" style="color:var(--green)">완료</div>
-    </div>
-    <div class="wk done">
-      <div class="wk-num">14주차 · 06.09</div>
-      <div class="wk-task">버그 수정<br>UI 개선</div>
-      <div class="wk-pct" style="color:var(--green)">완료</div>
+    <div class="wk ongoing">
+      <div class="wk-num">5주차 · 06.09</div>
+      <div class="wk-task">테스트<br>배포</div>
+      <div class="wk-pct" style="color:var(--primary-light)">MVP 75%</div>
     </div>
   </div>
   <div style="width:100%;max-width:860px">
@@ -644,6 +655,20 @@
   <div class="thanks">감사합니다.</div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 11 — Demo Video
+═══════════════════════════════════════════════════════ -->
+<div class="slide" id="s11">
+  <div class="slide-label">Demo</div>
+  <div class="slide-title" style="font-size:34px;margin-bottom:20px">앱 시연 영상</div>
+  <div class="video-wrap">
+    <video controls preload="metadata">
+      <source src="riv앱 30초 시연 영상라는 이름의 광고.mp4" type="video/mp4">
+      영상을 재생할 수 없습니다.
+    </video>
+  </div>
+</div>
+
 <script>
   const slides = Array.from(document.querySelectorAll('.slide'));
   const N = slides.length;
@@ -670,6 +695,7 @@
 
   function goTo(idx) {
     if (idx === cur || idx < 0 || idx >= N) return;
+    slides[cur].querySelectorAll('video').forEach(v => v.pause());
     slides[cur].classList.remove('active');
     cur = idx;
     slides[cur].classList.add('active');
